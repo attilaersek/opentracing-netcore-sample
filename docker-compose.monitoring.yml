@@ -37,6 +37,6 @@ services:
       - monitoring
 
 networks: 
-  tracing:
+  monitoring:
     external:
       name: monitoring
