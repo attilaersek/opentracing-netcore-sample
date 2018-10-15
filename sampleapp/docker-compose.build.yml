@@ -1,0 +1,30 @@
+version: '3.4'
+
+services:
+  match.service:
+    build:
+      context: .
+      dockerfile: src/Match.Service/Dockerfile
+      args:
+        configuration: Release
+
+  applicants.api:
+    build:
+      context: .
+      dockerfile: src/Applicants.Api/Dockerfile
+      args:
+        configuration: Release
+
+  jobs.api:
+    build:
+      context: .
+      dockerfile: src/Jobs.Api/Dockerfile
+      args:
+        configuration: Release
+
+  sample.web:
+    build:
+      context: .
+      dockerfile: src/Sample.Web/Dockerfile
+      args:
+        configuration: Release

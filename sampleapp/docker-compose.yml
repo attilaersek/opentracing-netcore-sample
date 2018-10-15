@@ -1,0 +1,18 @@
+version: '3.4'
+
+services:
+  match.service:
+    image: ${DOCKER_REGISTRY-}matchservice:${Version:-latest-dev}
+    container_name: matchservice
+
+  applicants.api:
+    image: ${DOCKER_REGISTRY-}applicantsapi:${Version:-latest-dev}
+    container_name: applicantsapi
+
+  jobs.api:
+    image: ${DOCKER_REGISTRY-}jobsapi:${Version:-latest-dev}
+    container_name: jobsapi
+
+  sample.web:
+    image: ${DOCKER_REGISTRY-}sampleweb:${Version:-latest-dev}
+    container_name: sampleweb

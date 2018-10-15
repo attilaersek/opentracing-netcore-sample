@@ -1,0 +1,3 @@
+FROM microsoft/dotnet:2.1.402-sdk
+WORKDIR /app
+ENTRYPOINT ["tail", "-f", "/dev/null"]
