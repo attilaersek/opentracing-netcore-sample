@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: src/Match.Service/Dockerfile.Debug
+    ports:
+      - "12455:80"
     networks:
       - monitoring
       - sample

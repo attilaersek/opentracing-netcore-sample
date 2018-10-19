@@ -1,7 +1,10 @@
 using System;
 using System.Reflection;
-using System.Threading;
+using App.Metrics;
+using App.Metrics.AspNetCore;
 using App.Metrics.AspNetCore.Health;
+using App.Metrics.Formatters;
+using App.Metrics.Formatters.Prometheus;
 using Consul;
 using Jaeger;
 using Jaeger.Reporters;
@@ -9,13 +12,11 @@ using Jaeger.Samplers;
 using Jaeger.Senders;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTracing;
 using OpenTracing.Contrib.NetCore.CoreFx;
-using OpenTracing.Propagation;
 using OpenTracing.Util;
 using Sample.Infrastructure;
 using Serilog;
@@ -24,6 +25,16 @@ namespace Sample.Web
 {
     public class Program
     {
+        private static readonly IMetricsRoot Metrics;
+
+        static Program()
+        {
+            Metrics = AppMetrics.CreateDefaultBuilder()
+                .OutputMetrics.AsPrometheusPlainText()
+                .OutputMetrics.AsPrometheusProtobuf()
+                .Build();
+        }
+
         public static void Main(string[] args)
         {
             CreateWebHostBuilder(args).Build().Run();
@@ -90,9 +101,15 @@ namespace Sample.Web
                     services.AddOpenTracing();
                 })
                 .UseStartup<Startup>()
-                .ConfigureHealthWithDefaults((context, builder) =>
-                {
-                })
+                .UseMetrics(
+                    (context, options) =>
+                    {
+                        options.EndpointOptions = endpointsOptions =>
+                        {
+                            endpointsOptions.MetricsTextEndpointOutputFormatter = Metrics.OutputMetricsFormatters.GetType<MetricsPrometheusTextOutputFormatter>();
+                            endpointsOptions.MetricsEndpointOutputFormatter = Metrics.OutputMetricsFormatters.GetType<MetricsPrometheusProtobufOutputFormatter>();
+                        };
+                    })
                 .UseHealth()
                 .UseHealthEndpoints(options => { options.PingEndpointEnabled = false; })
                 .ConfigureAppHealthHostingConfiguration(options => { options.HealthEndpoint = "/healthz"; })

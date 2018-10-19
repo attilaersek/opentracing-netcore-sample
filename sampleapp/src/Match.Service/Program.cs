@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using App.Metrics;
 using Consul;
 using Jaeger;
 using Jaeger.Reporters;
@@ -21,6 +22,16 @@ namespace Match.Service
 {
     class Program
     {
+        private static readonly IMetricsRoot Metrics;
+        
+        static Program()
+        {
+            Metrics = AppMetrics.CreateDefaultBuilder()
+                .OutputMetrics.AsPrometheusPlainText()
+                .OutputMetrics.AsPrometheusProtobuf()
+                .Build();
+        }
+
         static async Task Main(string[] args)
         {
             var hostBuilder = new HostBuilder()

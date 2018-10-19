@@ -12,8 +12,11 @@
     <PackageReference Include="App.Metrics.AspNetCore.Health" Version="2.0.0" />
     <PackageReference Include="App.Metrics.AspNetCore.Health.Endpoints" Version="2.0.0" />
     <PackageReference Include="App.Metrics.AspNetCore.Health.Hosting" Version="2.0.0" />
+    <PackageReference Include="App.Metrics.AspNetCore.Mvc" Version="2.0.0" />
     <PackageReference Include="App.Metrics.AspNetCore.Reporting" Version="2.0.0" />
     <PackageReference Include="App.Metrics.Extensions.DependencyInjection" Version="2.0.0" />
+    <PackageReference Include="App.Metrics.Formatters.Prometheus" Version="2.0.0" />
+    <PackageReference Include="App.Metrics.Health" Version="2.0.0" />
     <PackageReference Include="App.Metrics.Health.Extensions.DependencyInjection" Version="2.0.0" />
     <PackageReference Include="App.Metrics.Reporting.Http" Version="2.0.0" />
     <PackageReference Include="Consul" Version="0.7.2.6" />
