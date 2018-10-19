@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using Consul;
 using Jaeger;
 using Jaeger.Reporters;
 using Jaeger.Samplers;
@@ -9,9 +10,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTracing;
 using OpenTracing.Contrib.NetCore.CoreFx;
 using OpenTracing.Util;
+using Sample.Infrastructure;
 using Serilog;
 
 namespace Match.Service
@@ -38,42 +41,49 @@ namespace Match.Service
                   })
                   .ConfigureServices((context, services) =>
                   {
-                      services.Configure<ConsoleLifetimeOptions>(options => options.SuppressStatusMessages = true);
                       services.AddLogging();
+                      services.Configure<ConsulOptions>(context.Configuration.GetSection("consul"));
+                      services.Configure<TracerOptions>(context.Configuration.GetSection("tracer"));
                       services.AddSingleton<ITracer>(serviceProvider =>
                       {
-                          string serviceName = context.Configuration["service"] ?? Assembly.GetEntryAssembly().GetName().Name;
-
+                          var tracerOptions = serviceProvider.GetRequiredService<IOptions<TracerOptions>>();
                           var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 
+                          var serviceName = tracerOptions.Value?.ServiceName ?? Assembly.GetEntryAssembly().GetName().Name;
                           var sampler = new ConstSampler(sample: true);
-
-                          var mode = context.Configuration["jaeger-mode"] ?? "udp";
+                          var mode = tracerOptions.Value?.Mode ?? TracerMode.Udp;
 
                           var tracer = new Tracer.Builder(serviceName)
-                            .WithReporter(
-                                new RemoteReporter.Builder()
-                                    .WithLoggerFactory(loggerFactory)
-                                    .WithSender(
-                                        mode == "http" ?
-                                        (ISender)new HttpSender(context.Configuration["jaeger-http"] ?? "http://jaeger:14268/api/traces") :
-                                        new UdpSender(context.Configuration["jaeger-host"] ?? "jaeger", int.Parse(context.Configuration["jaeger-port"] ?? "6831"), 0))
-                                    .Build())
-                            .WithLoggerFactory(loggerFactory)
-                            .WithSampler(sampler)
-                            .Build();
+                          .WithReporter(
+                              new RemoteReporter.Builder()
+                                  .WithLoggerFactory(loggerFactory)
+                                  .WithSender(
+                                      mode == TracerMode.Http ?
+                                      (ISender)new HttpSender(tracerOptions.Value?.HttpEndPoint ?? "http://jaeger:14268/api/traces") :
+                                      new UdpSender(tracerOptions.Value?.UdpEndPoint?.Host ?? "jaeger", tracerOptions.Value?.UdpEndPoint?.Port ?? 6831, 0))
+                                  .Build())
+                          .WithLoggerFactory(loggerFactory)
+                          .WithSampler(sampler)
+                          .Build();
 
                           GlobalTracer.Register(tracer);
 
+                          // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger.
+                          services.Configure<HttpHandlerDiagnosticOptions>(options =>
+                          {
+                              options.IgnorePatterns.Add(request => new Uri(tracerOptions.Value?.HttpEndPoint ?? "http://jaeger:14268/api/traces").IsBaseOf(request.RequestUri));
+                          });
+
                           return tracer;
                       });
-
-                      // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger.
-                      services.Configure<HttpHandlerDiagnosticOptions>(options =>
+                      services.AddSingleton<IConsulClient, ConsulClient>(serviceProvider =>
                       {
-                          options.IgnorePatterns.Add(request => new Uri(context.Configuration["jaeger-http"] ?? "http://jaeger:14268/api/traces").IsBaseOf(request.RequestUri));
+                          var consulOptions = serviceProvider.GetRequiredService<IOptions<ConsulOptions>>();
+                          return new ConsulClient(options =>
+                          {
+                              options.Address = new Uri(consulOptions.Value?.Address ?? "http://consul:8500");
+                          });
                       });
-
                       services.AddOpenTracing();
                   })
                   .UseConsoleLifetime();

@@ -16,5 +16,5 @@ RUN dotnet publish ./src/Match.Service/Match.Service.csproj --configuration ${co
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app .
-HEALTHCHECK --start-period=10s --interval=5s --timeout=3s --retries=3 CMD curl --silent --fail http://localhost:80/healthz || exit 1
+#HEALTHCHECK --start-period=10s --interval=5s --timeout=3s --retries=3 CMD curl --silent --fail http://localhost:80/healthz || exit 1
 ENTRYPOINT ["dotnet", "Match.Service"]

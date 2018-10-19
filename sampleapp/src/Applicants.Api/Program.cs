@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using App.Metrics.AspNetCore.Health;
+using Consul;
 using Jaeger;
 using Jaeger.Reporters;
 using Jaeger.Samplers;
@@ -9,9 +10,11 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTracing;
 using OpenTracing.Contrib.NetCore.CoreFx;
 using OpenTracing.Util;
+using Sample.Infrastructure;
 using Serilog;
 
 namespace Applicants.Api
@@ -38,24 +41,25 @@ namespace Applicants.Api
                 .ConfigureServices((context, services) =>
                 {
                     services.AddLogging();
+                    services.Configure<ConsulOptions>(context.Configuration.GetSection("consul"));
+                    services.Configure<TracerOptions>(context.Configuration.GetSection("tracer"));
                     services.AddSingleton<ITracer>(serviceProvider =>
                     {
-                        string serviceName = context.Configuration["Tracing:ServiceName"] ?? Assembly.GetEntryAssembly().GetName().Name;
-
+                        var tracerOptions = serviceProvider.GetRequiredService<IOptions<TracerOptions>>();
                         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 
+                        var serviceName = tracerOptions.Value?.ServiceName ?? Assembly.GetEntryAssembly().GetName().Name;
                         var sampler = new ConstSampler(sample: true);
-
-                        var mode = context.Configuration["Tracing:Mode"] ?? "udp";
+                        var mode = tracerOptions.Value?.Mode ?? TracerMode.Udp;
 
                         var tracer = new Tracer.Builder(serviceName)
                         .WithReporter(
                             new RemoteReporter.Builder()
                                 .WithLoggerFactory(loggerFactory)
                                 .WithSender(
-                                    mode == "http" ?
-                                    (ISender)new HttpSender(context.Configuration["Tracing:Http"] ?? "http://jaeger:14268/api/traces") :
-                                    new UdpSender(context.Configuration["Tracing:Host"] ?? "jaeger", int.Parse(context.Configuration["Tracing:Port"] ?? "6831"), 0))
+                                    mode == TracerMode.Http ?
+                                    (ISender)new HttpSender(tracerOptions.Value?.HttpEndPoint ?? "http://jaeger:14268/api/traces") :
+                                    new UdpSender(tracerOptions.Value?.UdpEndPoint?.Host ?? "jaeger", tracerOptions.Value?.UdpEndPoint?.Port ?? 6831, 0))
                                 .Build())
                         .WithLoggerFactory(loggerFactory)
                         .WithSampler(sampler)
@@ -63,15 +67,22 @@ namespace Applicants.Api
 
                         GlobalTracer.Register(tracer);
 
+                        // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger.
+                        services.Configure<HttpHandlerDiagnosticOptions>(options =>
+                        {
+                            options.IgnorePatterns.Add(request => new Uri(tracerOptions.Value?.HttpEndPoint ?? "http://jaeger:14268/api/traces").IsBaseOf(request.RequestUri));
+                        });
+
                         return tracer;
                     });
-
-                    // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger.
-                    services.Configure<HttpHandlerDiagnosticOptions>(options =>
+                    services.AddSingleton<IConsulClient, ConsulClient>(serviceProvider =>
                     {
-                        options.IgnorePatterns.Add(request => new Uri(context.Configuration["Tracing:Http"] ?? "http://jaeger:14268/api/traces").IsBaseOf(request.RequestUri));
+                        var consulOptions = serviceProvider.GetRequiredService<IOptions<ConsulOptions>>();
+                        return new ConsulClient(options =>
+                        {
+                            options.Address = new Uri(consulOptions.Value?.Address ?? "http://consul:8500");
+                        });
                     });
-
                     services.AddOpenTracing();
                 })
                 .UseStartup<Startup>()
