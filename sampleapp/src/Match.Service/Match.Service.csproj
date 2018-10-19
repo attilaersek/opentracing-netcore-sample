@@ -22,6 +22,7 @@
     <PackageReference Include="App.Metrics.AspNetCore.Health.Endpoints" Version="2.0.0" />
     <PackageReference Include="App.Metrics.AspNetCore.Health.Hosting" Version="2.0.0" />
     <PackageReference Include="App.Metrics.Extensions.DependencyInjection" Version="2.0.0" />
+    <PackageReference Include="App.Metrics.Formatters.Prometheus" Version="2.0.0" />
     <PackageReference Include="App.Metrics.Health.Extensions.DependencyInjection" Version="2.0.0" />
     <PackageReference Include="Consul" Version="0.7.2.6" />
     <PackageReference Include="Jaeger" Version="0.2.1" />
