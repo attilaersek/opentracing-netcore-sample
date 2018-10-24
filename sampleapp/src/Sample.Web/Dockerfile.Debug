@@ -1,4 +1,0 @@
-FROM microsoft/dotnet:2.1.402-sdk
-EXPOSE 80 443
-WORKDIR /app
-ENTRYPOINT ["tail", "-f", "/dev/null"]
