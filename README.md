@@ -87,7 +87,7 @@ Open ```Startup.cs``` and add the OpenTracing services to the project:
                         services.Configure<HttpHandlerDiagnosticOptions>(options =>
                         {
                             // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger. Not effective when UdpSender is used.
-                            options.IgnorePatterns.Add(request => new Uri(tracingOptions?.HttpEndpoint?.Url ?? "http://localhost:14268/api/traces").IsBaseOf(request.RequestUri));
+                            options.IgnorePatterns.Add(request => new Uri("http://localhost:14268/api/traces").IsBaseOf(request.RequestUri));
                         });
                     })
                 .UseStartup<Startup>();
