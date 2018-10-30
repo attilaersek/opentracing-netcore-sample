@@ -21,6 +21,81 @@ To start up the tracing and monitoring infrastructure (including: jaeger, promet
 docker-compose -f ./docker-compose.monitoring.yml up -d
 ```
 
+## Tutorial
+
+Create a sample web application
+
+```bash
+md sample.web
+dotnet new mvc --name sample.web --output sample.web --auth none
+```
+
+Install the needed packages to the project
+
+```bash
+dotnet add sample.web/sample.web.csproj package Jaeger
+dotnet add sample.web/sample.web.csproj package OpenTracing
+dotnet add sample.web/sample.web.csproj package OpenTracing.Contrib.NetCore
+dotnet restore sample.web/sample.web.csproj
+```
+
+Open the project in your favourite editor, eg.: Visual Studio Code
+
+```bash
+code sample.web
+```
+
+Open ```Startup.cs``` and add the OpenTracing services to the project:
+
+```csharp
+        private static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
+            WebHost.CreateDefaultBuilder(args)
+                .CaptureStartupErrors(false)
+                .SuppressStatusMessages(true)
+                .ConfigureServices(
+                    (context, services) =>
+                    {
+                        services.AddSingleton<ITracer>(serviceProvider =>
+                        {
+                            var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+
+                            var serviceName = Assembly.GetEntryAssembly().GetName().Name;
+                            var sampler = new ConstSampler(sample: true);
+
+                            var tracer = new Tracer.Builder(serviceName)
+                                .WithReporter(
+                                    new RemoteReporter.Builder()
+                                        .WithLoggerFactory(loggerFactory)
+                                        .WithSender(new UdpSender("localhost", 6831))
+                                        .Build())
+                                .WithLoggerFactory(loggerFactory)
+                                .WithSampler(sampler)
+                                .Build();
+
+                            GlobalTracer.Register(tracer);
+
+                            return tracer;
+                        });
+                        services.AddOpenTracing(builder =>
+                        {
+                            builder.ConfigureAspNetCore(options =>
+                            {
+                                // This example shows how to ignore certain requests to prevent spamming the tracer with irrelevant data
+                                options.Hosting.IgnorePatterns.Add(request => request.Request.Path.Value?.StartsWith("/healthz") == true);
+                            });
+                        });
+                        services.Configure<HttpHandlerDiagnosticOptions>(options =>
+                        {
+                            // Prevent endless loops when OpenTracing is tracking HTTP requests to Jaeger. Not effective when UdpSender is used.
+                            options.IgnorePatterns.Add(request => new Uri(tracingOptions?.HttpEndpoint?.Url ?? "http://localhost:14268/api/traces").IsBaseOf(request.RequestUri));
+                        });
+                    })
+                .UseStartup<Startup>();
+    }
+```
+
+Build and run the solution. Open some pages to generate logs. For further examples check the examples folder.
+
 ### Testing all the applications and microservices
 
 Once the containers are deployed, you should be able to access any of the services in the following URLs or connection string, from your dev machine:
